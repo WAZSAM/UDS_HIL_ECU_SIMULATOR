@@ -15,6 +15,8 @@ The simulator handles four UDS (ISO 14229) services:
 
 If a client requests an unsupported sub-function on 0x10, 0x27, or 0x19, the ECU returns a proper negative response (`7F` + service ID + NRC) instead of failing silently or ignoring the request.
 
+fuzzer.py is a basic fuzzer that sends a configurable number of UDS requests to the simulator, each with a randomized sub-function byte. Since it has no way of knowing the "correct" response for a random value, it doesn't check for correctness — it only checks whether the ECU responds at all within a timeout, to catch cases where malformed input might cause it to hang or crash instead of rejecting the request cleanly.
+
 `test_ecu.py` is a separate pytest-based client that sends requests to the simulator and asserts the responses match what's expected — both the valid requests and the deliberately invalid ones.
 
 **How to Run**
@@ -79,4 +81,3 @@ Honestly the most common bug wasn't conceptual at all — it was miscounting byt
 
 - Add the key-verification half of SecurityAccess (currently only the seed request is implemented)
 - Multi-frame (ISO-TP) support so responses aren't capped at 7 bytes — the VIN response right now is a shortened fake VIN for exactly this reason
-- A basic fuzzer that sends malformed/random UDS requests and logs anything that causes a crash or a non-response
