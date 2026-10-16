@@ -4,6 +4,9 @@ import pytest
 @pytest.fixture
 def bus():
     b = can.interface.Bus(channel='vcan0', interface='socketcan')
+    reset = can.Message(arbitration_id=0x123, data=[0x02, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+    b.send(reset)
+    b.recv(timeout=1)  # Wait for the ECU to process the reset
     yield b
     b.shutdown()
 
@@ -70,3 +73,62 @@ def test_read_protected_did_while_locked(bus):
     print(response)
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x22, 0x33, 0x00, 0x00, 0x00]
+
+def test_unlock_then_read_protected_did(bus):
+    # Step 1: Send security access request to unlock
+    request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x04, 0x67, 0x01, 0x12, 0x34, 0x00, 0x00]
+
+    # Step 2: Send security access request with correct key to unlock
+    request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, 0xB7, 0x91, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x02, 0x67, 0x02, 0x00, 0x00, 0x00, 0x00]
+
+    # Step 3: Now read the protected DID
+    request = can.Message(arbitration_id=0x456, data=[0x03, 0x22, 0xF1, 0x91, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x05, 0x62, 0xF1, 0x91, 0x56, 0x31, 0x00, 0x00]
+
+def test_read_unkown_did(bus):
+    request = can.Message(arbitration_id=0x456, data=[0x03, 0x22, 0xF1, 0x99, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x03, 0x7F, 0x22, 0x31, 0x00, 0x00, 0x00]
+
+def test_key_without_seed(bus):
+    # Step 1: Send security access request without requesting seed
+    request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, 0xB7, 0x91, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x03, 0x7F, 0x27, 0x24, 0x00, 0x00, 0x00] 
+
+def test_wrong_key(bus):
+    # Step 1: Send security access request to unlock
+    request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x04, 0x67, 0x01, 0x12, 0x34, 0x00, 0x00]
+
+    # Step 2: Send security access request with wrong key
+    request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, 0xB7, 0x92, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x03, 0x7F, 0x27, 0x35, 0x00, 0x00, 0x00]
