@@ -19,6 +19,49 @@ fuzzer.py is a basic fuzzer that sends a configurable number of UDS requests to 
 
 `test_ecu.py` is a separate pytest-based client that sends requests to the simulator and asserts the responses match what's expected — both the valid requests and the deliberately invalid ones.
 
+## Security behaviour
+
+The simulator behaves like a small ECU with a locked/unlocked state:
+
+- The ECU starts locked.
+- `27 01` returns a seed. `27 02` with the correct key unlocks the ECU.
+- A key sent before any seed was requested is rejected with NRC `0x24`
+  (requestSequenceError). A wrong key is rejected with NRC `0x35` (invalidKey).
+- DID `F190` (VIN) is public and can be read at any time.
+- DID `F191` (hardware version) is protected. While the ECU is locked it
+  returns NRC `0x33` (securityAccessDenied). After a successful unlock it
+  returns the data.
+- An unknown DID returns NRC `0x31` (requestOutOfRange).
+- A diagnostic session change (`10 01` / `10 03`) re-locks the ECU and clears
+  the seed, similar to how a real ECU drops security access on a session change.
+
+## Tests
+
+12 pytest tests cover the services, the error responses and the lock logic,
+including the full flow: seed, key, unlock, read the protected DID.
+
+Run them with the ECU running in another terminal:
+
+    python3 ECU_mycan.py
+    pytest -v
+
+A pytest fixture opens the python-can bus for each test, resets the ECU with a
+session control request so every test starts locked, and closes the bus at the
+end. Every receive has a 1-second timeout, so if the ECU is not running the
+tests fail quickly instead of hanging.
+
+## Known limitations
+
+This is a learning project. What it does not do yet:
+
+- The seed is always `12 34` and the key is the seed XOR `0xA5`. Anyone who
+  captures one seed/key pair can recover the secret. A real ECU uses a random
+  seed and a keyed cryptographic function.
+- The VIN is shortened to 4 characters because multi-frame messages (ISO-TP,
+  ISO 15765-2) are not implemented.
+- The ECU answers requests on any CAN ID and does not check the length byte.
+- There is no limit on wrong key attempts (a real ECU locks out after a few).
+
 **How to Run**
 
 **Prerequisites**
