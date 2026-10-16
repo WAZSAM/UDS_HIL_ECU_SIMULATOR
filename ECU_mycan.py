@@ -10,7 +10,7 @@ while True:
 
     if message.data[1] == 0x10:
         ECU_is_locked = True
-        Seed_sent = False
+        seed_sent = False
         if message.data[2] == 0x01 or message.data[2] == 0x03:
             response = can.Message(arbitration_id=0x321, data=[0x06, 0x50, message.data[2], 0x00, 0x32, 0x01, 0xF4], is_extended_id=False)
             bus.send(response)
