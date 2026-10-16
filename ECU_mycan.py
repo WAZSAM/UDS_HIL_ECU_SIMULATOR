@@ -9,7 +9,8 @@ while True:
     print(message)
 
     if message.data[1] == 0x10:
-
+        ECU_is_locked = True
+        Seed_sent = False
         if message.data[2] == 0x01 or message.data[2] == 0x03:
             response = can.Message(arbitration_id=0x321, data=[0x06, 0x50, message.data[2], 0x00, 0x32, 0x01, 0xF4], is_extended_id=False)
             bus.send(response)
@@ -51,19 +52,14 @@ while True:
             if not seed_sent:
                 response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x24, 0x00, 0x00, 0x00], is_extended_id=False)
                 bus.send(response)
-            elif ECU_is_locked:
-                response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x35, 0x00, 0x00, 0x00], is_extended_id=False)
-                bus.send(response)
-            elif not ECU_is_locked:
-                response = can.Message(arbitration_id=0x321, data=[0x04, 0x67, 0x02, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
-                bus.send(response)
-            if message.data[3] == 0xB7 and message.data[4] == 0x91:
-                ECU_is_locked = False
-                response = can.Message(arbitration_id=0x321, data=[0x04, 0x67, 0x02, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
-                bus.send(response)
             else:
-                response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x35, 0x00, 0x00, 0x00], is_extended_id=False)
-                bus.send(response)
+                if message.data[3] == 0xB7 and message.data[4] == 0x91:
+                    ECU_is_locked = False
+                    response = can.Message(arbitration_id=0x321, data=[0x02, 0x67, 0x02, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+                    bus.send(response)
+                else:
+                    response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x35, 0x00, 0x00, 0x00], is_extended_id=False)
+                    bus.send(response)
         else:
             response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x12, 0x00, 0x00, 0x00], is_extended_id=False)
             bus.send(response)
