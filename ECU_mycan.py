@@ -42,10 +42,17 @@ while True:
             bus.send(response)
 
     elif message.data[1] == 0x27:
-
         if message.data[2] == 0x01:
             response = can.Message(arbitration_id=0x321, data=[0x04, 0x67, 0x01, 0x12, 0x34, 0x00, 0x00], is_extended_id=False)
             bus.send(response)
+        elif message.data[2] == 0x02:
+            if message.data[3] == 0xB7 and message.data[4] == 0x91:
+                ECU_is_locked = False
+                response = can.Message(arbitration_id=0x321, data=[0x04, 0x67, 0x02, message.data[3], message.data[4], 0x00, 0x00], is_extended_id=False)
+                bus.send(response)
+            else:
+                response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x35, 0x00, 0x00, 0x00], is_extended_id=False)
+                bus.send(response)
         else:
             response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x12, 0x00, 0x00, 0x00], is_extended_id=False)
             bus.send(response)
