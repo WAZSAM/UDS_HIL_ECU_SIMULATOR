@@ -62,3 +62,11 @@ def test_security_access_invalid_function(bus):
     print(response)
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x27, 0x12, 0x00, 0x00, 0x00]
+
+def test_read_protected_did_while_locked(bus):
+    request = can.Message(arbitration_id=0x456, data=[0x03, 0x22, 0xF1, 0x91, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(request)
+    response = bus.recv(timeout=1)
+    print(response)
+    assert response is not None, "No response received within the timeout period."
+    assert list(response.data) == [0x03, 0x7F, 0x22, 0x33, 0x00, 0x00, 0x00]
