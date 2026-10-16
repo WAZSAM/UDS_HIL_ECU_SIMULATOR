@@ -1,6 +1,7 @@
 import can
 
 bus = can.interface.Bus(channel='vcan0', interface='socketcan')
+ECU_is_locked = True
 
 while True:
     message = bus.recv()
@@ -25,8 +26,19 @@ while True:
             bus.send(response)
 
     elif message.data[1] == 0x22:
-            vin_byts = list("WA12".encode())
+        vin_byts = list("WA12".encode())
+        if message.data[2] == 0xF1 and message.data[3] == 0x90:
             response = can.Message(arbitration_id=0x321, data=[0x07, 0x62, 0xF1, 0x90] + vin_byts, is_extended_id=False)
+            bus.send(response)
+        elif message.data[2] == 0xF1 and message.data[3] == 0x91:
+            if ECU_is_locked:
+                response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x33, 0x00, 0x00, 0x00], is_extended_id=False)
+                bus.send(response)
+            else:
+                response = can.Message(arbitration_id=0x321, data=[0x05, 0x62, 0xF1, 0x91, 0x56, 0x31, 0x00, 0x00], is_extended_id=False)
+                bus.send(response)
+        else:
+            response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x31, 0x00, 0x00, 0x00], is_extended_id=False)
             bus.send(response)
 
     elif message.data[1] == 0x27:
@@ -37,3 +49,5 @@ while True:
         else:
             response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x12, 0x00, 0x00, 0x00], is_extended_id=False)
             bus.send(response)
+
+bus.shutdown()
