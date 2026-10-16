@@ -1,5 +1,6 @@
 import can
 import pytest
+import random
 
 @pytest.fixture
 def bus():
@@ -38,9 +39,11 @@ def test_security_access(bus):
     request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
+    seed1 = response.data[3]
+    seed2 = response.data[4]
     print(response)
     assert response is not None, "No response received within the timeout period."  
-    assert list(response.data) == [0x04, 0x67, 0x01, 0x12, 0x34, 0x00, 0x00]
+    assert list(response.data) == [0x04, 0x67, 0x01, seed1, seed2, 0x00, 0x00]
 
 def test_section_control_invalid_function(bus):
     request =can.Message(arbitration_id=0x123, data=[0x02, 0x10, 0x99, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
@@ -79,12 +82,16 @@ def test_unlock_then_read_protected_did(bus):
     request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
+    seed1 = response.data[3]
+    seed2 = response.data[4]
     print(response)
     assert response is not None, "No response received within the timeout period."
-    assert list(response.data) == [0x04, 0x67, 0x01, 0x12, 0x34, 0x00, 0x00]
+    assert list(response.data) == [0x04, 0x67, 0x01, seed1, seed2, 0x00, 0x00]
 
     # Step 2: Send security access request with correct key to unlock
-    request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, 0xB7, 0x91, 0x00, 0x00, 0x00], is_extended_id=False)
+    correct_key = (seed1) ^ 0xA5  # This is just a placeholder for the correct key calculation
+    correct_key2 = (seed2) ^ 0xA5  # This is just a placeholder for the correct key calculation
+    request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, correct_key, correct_key2, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
     print(response)
@@ -121,12 +128,18 @@ def test_wrong_key(bus):
     request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
+    seed1 = response.data[3]
+    seed2 = response.data[4]
     print(response)
     assert response is not None, "No response received within the timeout period."
-    assert list(response.data) == [0x04, 0x67, 0x01, 0x12, 0x34, 0x00, 0x00]
+    assert list(response.data) == [0x04, 0x67, 0x01, seed1, seed2, 0x00, 0x00]
 
     # Step 2: Send security access request with wrong key
-    request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, 0xB7, 0x92, 0x00, 0x00, 0x00], is_extended_id=False)
+    correct_key = (seed1) ^ 0xA5  # This is just a placeholder for the correct key calculation
+    correct_key2 = (seed2) ^ 0xA5  # This is just a placeholder for the correct key calculation
+    wrong_key = (correct_key) ^ 0x01  # This is just a placeholder for the wrong key calculation
+    wrong_key2 = (correct_key2) ^ 0x01  # This is just a placeholder for the wrong key calculation
+    request = can.Message(arbitration_id=0x789, data=[0x04, 0x27, 0x02, wrong_key, wrong_key2, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
     print(response)

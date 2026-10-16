@@ -1,4 +1,5 @@
 import can
+import random
 
 bus = can.interface.Bus(channel='vcan0', interface='socketcan')
 ECU_is_locked = True
@@ -46,14 +47,16 @@ while True:
     elif message.data[1] == 0x27:
         if message.data[2] == 0x01:
             seed_sent = True
-            response = can.Message(arbitration_id=0x321, data=[0x04, 0x67, 0x01, 0x12, 0x34, 0x00, 0x00], is_extended_id=False)
+            stored_seed1 = random.randint(0, 255)
+            stored_seed2 = random.randint(0, 255)
+            response = can.Message(arbitration_id=0x321, data=[0x04, 0x67, 0x01, stored_seed1, stored_seed2, 0x00, 0x00], is_extended_id=False)
             bus.send(response)
         elif message.data[2] == 0x02:
             if not seed_sent:
                 response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x24, 0x00, 0x00, 0x00], is_extended_id=False)
                 bus.send(response)
             else:
-                if message.data[3] == 0xB7 and message.data[4] == 0x91:
+                if message.data[3] == stored_seed1 ^ 0xA5 and message.data[4] == stored_seed2 ^ 0xA5:
                     ECU_is_locked = False
                     response = can.Message(arbitration_id=0x321, data=[0x02, 0x67, 0x02, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
                     bus.send(response)
