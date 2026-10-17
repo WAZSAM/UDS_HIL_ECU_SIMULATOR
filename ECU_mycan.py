@@ -56,7 +56,7 @@ while True:
                 response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x24, 0x00, 0x00, 0x00], is_extended_id=False)
                 bus.send(response)
             else:
-                if message.data[3] == stored_seed ^ 0xA5 and message.data[4] == stored_seed2 ^ 0xA5:
+                if message.data[3] == stored_seed ^ 0xA5 and message.data[4] == stored_seed2 ^ 0x5A:
                     ECU_is_locked = False
                     response = can.Message(arbitration_id=0x321, data=[0x02, 0x67, 0x02, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
                     bus.send(response)

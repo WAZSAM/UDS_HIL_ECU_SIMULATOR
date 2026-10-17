@@ -136,7 +136,7 @@ def test_wrong_key(bus):
 
     # Step 2: Send security access request with wrong key
     correct_key = (seed1) ^ 0xA5  # This is just a placeholder for the correct key calculation
-    correct_key2 = (seed2) ^ 0xA5  # This is just a placeholder for the correct key calculation
+    correct_key2 = (seed2) ^ 0x5A  # This is just a placeholder for the correct key calculation
     wrong_key = (correct_key) ^ 0x01  # This is just a placeholder for the wrong key calculation
     wrong_key2 = (correct_key2) ^ 0x01  # This is just a placeholder for the wrong key calculation
     request = can.Message(arbitration_id=0x789, data=[0x04, 0x27, 0x02, wrong_key, wrong_key2, 0x00, 0x00, 0x00], is_extended_id=False)
