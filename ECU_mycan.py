@@ -9,6 +9,7 @@ while True:
     message = bus.recv()
     print(message)
 
+    # Handle the received message based on its service ID
     if message.data[1] == 0x10:
         ECU_is_locked = True
         seed_sent = False
@@ -18,7 +19,7 @@ while True:
         else:
             response = can.Message(arbitration_id=0x321, data=[0x03, 0x7F, message.data[1], 0x12, 0x00, 0x00, 0x00], is_extended_id=False)
             bus.send(response)
-
+    
     elif message.data[1] == 0x19:
 
         if message.data[2] == 0x02:
