@@ -6,22 +6,76 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <linux/can.h>
+#include <stdlib.h>
+#include <time.h>
+
+int ECU_is_locked = 1;
+
+unsigned char store_seed = 0;
+unsigned char store_seed2 = 0;
 
 void check_sid(unsigned char data[], int sock) {
      if (data[1] == 0x27) {
         printf("Security Access \n");
 
-        struct can_frame response;
-        response.can_id = 0x321;
-        response.can_dlc = 5;
-        response.data[0] = 0x04;
-        response.data[1] = 0x67;
-        response.data[2] = 0x01;
-        response.data[3] = 0x12;
-        response.data[4] = 0x34;
+        if (data[2] == 0x01){               
 
-        write(sock, &response, sizeof(struct can_frame));
+            store_seed = rand() % 256;
+            store_seed2 = rand() % 256;
 
+            printf("Seed Requested\n");
+
+            struct can_frame response;
+            response.can_id = 0x321;
+            response.can_dlc = 5;
+            response.data[0] = 0x04;
+            response.data[1] = 0x67;
+            response.data[2] = 0x01;
+            response.data[3] = store_seed;
+            response.data[4] = store_seed2;
+
+            write(sock, &response, sizeof(struct can_frame));
+
+        }else if (data[2] == 0x02)
+        {
+            printf("Key Submited\n");
+
+            
+            if (data[3] == (store_seed ^ 0xA5) && data[4] == (store_seed2 ^ 0x5A)){
+
+                ECU_is_locked = 0;
+                struct can_frame response;
+                response.can_id = 0x321;
+                response.can_dlc = 5;
+                response.data[0] = 0x02;
+                response.data[1] = 0x67;
+                response.data[2] = 0x02;
+                response.data[3] = 0x00;
+                response.data[4] = 0x00;
+
+                write(sock, &response, sizeof(struct can_frame));
+
+            }
+            else{
+
+                struct can_frame response;
+                response.can_id = 0x321;
+                response.can_dlc = 5;
+                response.data[0] = 0x03;
+                response.data[1] = 0x7F;
+                response.data[2] = 0x27;
+                response.data[3] = 0x35;
+                response.data[4] = 0x00;
+
+                write(sock, &response, sizeof(struct can_frame));
+
+            }
+        }
+
+        else{
+            printf("Wrong Sub-Funtion\n");
+        }
+        
     } else if (data[1] == 0x10) {
         printf("Session Control \n");
 
@@ -44,6 +98,8 @@ void check_sid(unsigned char data[], int sock) {
 }
 
 int main() {
+
+    srand(time(NULL));
 
     int sock = socket(PF_CAN, SOCK_RAW, CAN_RAW);
 
