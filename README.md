@@ -19,6 +19,26 @@ fuzzer.py is a basic fuzzer that sends a configurable number of UDS requests to 
 
 `test_ecu.py` is a separate pytest-based client that sends requests to the simulator and asserts the responses match what's expected — both the valid requests and the deliberately invalid ones.
 
+## Source code guide
+
+The source files include comments describing their main steps and the meaning
+of the UDS/CAN data they handle. These comments explain the existing code; they
+do not change how the programs behave.
+
+- `ECU_mycan.py` is the Python ECU simulator used by the tests. It handles
+  diagnostic sessions, DTC and DID reads, and the SecurityAccess seed/key flow.
+- `ECU.c` is a C version of the ECU that handles SecurityAccess and session
+  control requests over `vcan0`.
+- `Hello.c` is a small C example that checks a UDS service ID.
+- `unlock_test.c` is a C CAN client that requests a seed, calculates a key,
+  submits it, and prints the ECU's response.
+- `test_ecu.py` contains pytest checks for the Python simulator.
+- `Key_generator.py` demonstrates the simulator's seed/key exchange.
+- `attack_capture.py` demonstrates why the simulator's XOR-based key rule is
+  insecure by observing a seed/key pair.
+- `fuzzer.py` sends a small number of requests with randomized sub-functions
+  and prints whether a response arrived.
+
 ## Security behaviour
 
 The simulator behaves like a small ECU with a locked/unlocked state:
