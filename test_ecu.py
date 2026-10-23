@@ -2,7 +2,7 @@ import can
 import pytest
 import random
 
-# Fixture to initialize the CAN bus
+# Provide each test with a CAN bus connection and reset the ECU to a locked state.
 @pytest.fixture
 def bus():
     b = can.interface.Bus(channel='vcan0', interface='socketcan')
@@ -12,7 +12,7 @@ def bus():
     yield b
     b.shutdown()
 
-# Test session control with valid request
+# Verify that a valid extended-session request receives a positive response.
 def test_session_contorl_valid(bus):
     request = can.Message(arbitration_id=0x123, data=[0x02, 0x10, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -21,7 +21,7 @@ def test_session_contorl_valid(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x06, 0x50, 0x03, 0x00, 0x32, 0x01, 0xF4]
 
-# Test read DTC information with valid request
+# Verify that the supported DTC query returns the sample trouble-code data.
 def test_read_dtc_information(bus):
     request = can.Message(arbitration_id=0x199, data=[0x02, 0x19, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -30,7 +30,7 @@ def test_read_dtc_information(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x06, 0x59, 0x02, 0x01, 0x02, 0x03, 0x08]
 
-# Test read data by identifier with valid request
+# Verify that the public VIN DID can be read while the ECU is locked.
 def test_read_data_by_identifier(bus):
     request = can.Message(arbitration_id=0x456, data=[0x03, 0x22, 0xF1, 0x90, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -39,7 +39,7 @@ def test_read_data_by_identifier(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x07, 0x62, 0xF1, 0x90, 0x57, 0x41, 0x31, 0x32]
 
-# Test security access with valid request
+# Verify that a seed request receives a positive SecurityAccess response.
 def test_security_access(bus):
     request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -50,7 +50,7 @@ def test_security_access(bus):
     assert response is not None, "No response received within the timeout period."  
     assert list(response.data) == [0x04, 0x67, 0x01, seed1, seed2, 0x00, 0x00]
 
-# Test sectionm control with invalid function
+# Verify that an unsupported diagnostic-session sub-function is rejected.
 def test_section_control_invalid_function(bus):
     request =can.Message(arbitration_id=0x123, data=[0x02, 0x10, 0x99, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -59,7 +59,7 @@ def test_section_control_invalid_function(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x10, 0x12, 0x00, 0x00, 0x00]
 
-# Test read DTC information with invalid function
+# Verify that an unsupported DTC sub-function is rejected.
 def test_read_dtc_information_invalid_function(bus):
     request = can.Message(arbitration_id=0x199, data=[0x02, 0x19, 0x99, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -68,7 +68,7 @@ def test_read_dtc_information_invalid_function(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x19, 0x12, 0x00, 0x00, 0x00]
 
-# Test security access with invalid function
+# Verify that an unsupported SecurityAccess sub-function is rejected.
 def test_security_access_invalid_function(bus):
     request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x99, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -77,7 +77,7 @@ def test_security_access_invalid_function(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x27, 0x12, 0x00, 0x00, 0x00]
 
-# Test reading a protected DID while the ECU is locked
+# Verify that the protected hardware DID is denied before unlocking.
 def test_read_protected_did_while_locked(bus):
     request = can.Message(arbitration_id=0x456, data=[0x03, 0x22, 0xF1, 0x91, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -86,7 +86,7 @@ def test_read_protected_did_while_locked(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x22, 0x33, 0x00, 0x00, 0x00]
 
-# Test unlocking the ECU and then reading a protected DID
+# Exercise the full seed/key exchange, then read the protected hardware DID.
 def test_unlock_then_read_protected_did(bus):
     # Step 1: Send security access request to unlock
     request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
@@ -116,7 +116,7 @@ def test_unlock_then_read_protected_did(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x05, 0x62, 0xF1, 0x91, 0x56, 0x31, 0x00, 0x00]
 
-# Test reading an unknown DID
+# Verify that an unrecognized DID returns requestOutOfRange.
 def test_read_unkown_did(bus):
     request = can.Message(arbitration_id=0x456, data=[0x03, 0x22, 0xF1, 0x99, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
@@ -125,7 +125,7 @@ def test_read_unkown_did(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x22, 0x31, 0x00, 0x00, 0x00]
 
-# Test sending a key without requesting a seed first
+# Verify that submitting a key before requesting a seed is rejected.
 def test_key_without_seed(bus):
     # Step 1: Send security access request without requesting seed
     request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, 0xB7, 0x91, 0x00, 0x00], is_extended_id=False)
@@ -135,7 +135,7 @@ def test_key_without_seed(bus):
     assert response is not None, "No response received within the timeout period."
     assert list(response.data) == [0x03, 0x7F, 0x27, 0x24, 0x00, 0x00, 0x00] 
 
-# Test sending a wrong key after receiving a seed
+# Verify that a key that does not match the issued seed is rejected.
 def test_wrong_key(bus):
     # Step 1: Send security access request to unlock
     request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
