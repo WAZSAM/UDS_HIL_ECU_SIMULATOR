@@ -31,10 +31,16 @@ for i in range(5):  # Send 5 random requests
         print("Response received:", list(response.data))
 
     # Try a random SecurityAccess sub-function and display the response.
-    request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, random.randint(0, 255), 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
-    print("Sent sub-function:", hex(request.data[2]))
+    seed_request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00], is_extended_id=False)
+    bus.send(seed_request)
+    seed_response = bus.recv(timeout=1)
+    seed1 = seed_response.data[3]
+    seed2 = seed_response.data[4]
+
+    request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x02, random.randint(0, 255), random.randint(0, 255), 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
+    print("Tried key:", hex(request.data[3]), hex(request.data[4]), "-> Response:", list(response.data))
 
     if response is None:
         print("No response received within the timeout period.")
