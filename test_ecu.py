@@ -101,7 +101,7 @@ def test_unlock_then_read_protected_did(bus):
     # Step 2: Send security access request with correct key to unlock
     correct_key = (seed1) ^ 0xA5  # This is just a placeholder for the correct key calculation
     correct_key2 = (seed2) ^ 0x5A  # This is just a placeholder for the correct key calculation
-    request = can.Message(arbitration_id=0x789, data=[0x03, 0x27, 0x02, correct_key, correct_key2, 0x00, 0x00, 0x00], is_extended_id=False)
+    request = can.Message(arbitration_id=0x789, data=[0x04, 0x27, 0x02, correct_key, correct_key2, 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
     print(response)

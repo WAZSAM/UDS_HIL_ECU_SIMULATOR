@@ -37,7 +37,7 @@ for i in range(5):  # Send 5 random requests
     seed1 = seed_response.data[3]
     seed2 = seed_response.data[4]
 
-    request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x02, random.randint(0, 255), random.randint(0, 255), 0x00, 0x00, 0x00], is_extended_id=False)
+    request = can.Message(arbitration_id=0x789, data=[0x04, 0x27, 0x02, random.randint(0, 255), random.randint(0, 255), 0x00, 0x00, 0x00], is_extended_id=False)
     bus.send(request)
     response = bus.recv(timeout=1)
     print("Tried key:", hex(request.data[3]), hex(request.data[4]), "-> Response:", list(response.data))

