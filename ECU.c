@@ -106,6 +106,76 @@ void check_sid(unsigned char data[], int sock) {
     
         write(sock, &response, sizeof(struct can_frame));
 
+    }else if (data[1] == 0x22) {
+        printf("Read Data By Identifier \n");
+
+        if (data[2] == 0xF1 && data[3] == 0x90) {
+            printf("Read Data By Identifier - VIN \n");
+
+            // Build a positive response for the VIN request.
+            struct can_frame response;
+            response.can_id = 0x321;
+            response.can_dlc = 8;
+            response.data[0] = 0x07;
+            response.data[1] = 0x62;
+            response.data[2] = 0xF1;
+            response.data[3] = 0x90;
+            response.data[4] = '1';
+            response.data[5] = 'H';
+            response.data[6] = 'G';
+            response.data[7] = 'C';
+
+            write(sock, &response, sizeof(struct can_frame));
+
+        } else if (data[2] == 0xF1 && data[3] == 0x91) {
+            printf("Read Data By Identifier - Serial Number \n");
+
+            // Build a positive response for the Serial Number request.,
+            if (ECU_is_locked) {
+                printf("ECU is locked, cannot read Serial Number\n");
+                struct can_frame response;
+                response.can_id = 0x321;
+                response.can_dlc = 5;
+                response.data[0] = 0x03;
+                response.data[1] = 0x7F;
+                response.data[2] = 0x22;
+                response.data[3] = 0x33; // NRC 0x33: SecurityAccessDenied
+                response.data[4] = 0x00;
+
+                write(sock, &response, sizeof(struct can_frame));
+            } else if {
+                printf("ECU is unlocked, sending Serial Number\n");
+            struct can_frame response;
+            response.can_id = 0x321;
+            response.can_dlc = 8;
+            response.data[0] = 0x07;
+            response.data[1] = 0x62;
+            response.data[2] = 0xF1;
+            response.data[3] = 0x91;
+            response.data[4] = 'S';
+            response.data[5] = 'N';
+            response.data[6] = '1';
+            response.data[7] = '2';
+
+            write(sock, &response, sizeof(struct can_frame));
+        
+        } else {
+            // Any other identifier is not handled here.
+            printf("Wrong Identifier \n");
+        }
+
+    else if (data[1] == 0x19) {
+        printf("Read DTC Information \n");
+        
+            struct can_frame response;
+            response.can_id = 0x321;
+            response.can_dlc = 5;
+            response.data[0] = 0x03;
+            response.data[1] = 0x59;
+            response.data[2] = 0x02;
+            response.data[3] = 0x00;
+            response.data[4] = 0x00;    
+
     } else {
         // The ECU does not implement this service ID.
         printf("Wrong SID \n");

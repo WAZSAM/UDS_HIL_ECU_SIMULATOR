@@ -6,48 +6,62 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <linux/can.h>
+#include <sys/types.h>
 
-// Request a SecurityAccess seed, calculate the matching key, and submit it.
 int main() {
 
-    // Open a raw CAN socket for sending and receiving CAN frames.
     int sock = socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (sock < 0) { perror("Socket creation error"); return 1; }
 
-    // Find the interface index for vcan0 so the socket can bind to it.
     struct ifreq ifr;
-    strcpy(ifr.ifr_name, "vcan0");
+    strncpy(ifr.ifr_name, "vcan0", IFNAMSIZ - 1);
+    ifr.ifr_name[IFNAMSIZ - 1] = '\0';  // guarantee null-termination regardless of source length
     if (ioctl(sock, SIOCGIFINDEX, &ifr) < 0) { perror("IOCTL error"); return 1; }
 
-    // Bind this socket to the virtual CAN interface.
     struct sockaddr_can addr;
+    memset(&addr, 0, sizeof(addr));
     addr.can_family = AF_CAN;
     addr.can_ifindex = ifr.ifr_ifindex;
     if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) { perror("Bind error"); return 1; }
 
-    // Ask the ECU for a seed using SecurityAccess service 0x27, sub-function 0x01.
+    // Fix: set a 1-second receive timeout, same role as Python's bus.recv(timeout=1).
+    // Without this, read() blocks forever if no frame ever arrives.
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
     struct can_frame seed_request;
+    memset(&seed_request, 0, sizeof(seed_request));  // zero unused bytes, don't rely on stack garbage
     seed_request.can_id = 0x789;
     seed_request.can_dlc = 3;
     seed_request.data[0] = 0x02;
     seed_request.data[1] = 0x27;
     seed_request.data[2] = 0x01;
-    write(sock, &seed_request, sizeof(struct can_frame));
 
-    // Wait for the ECU's positive seed response (service ID 0x67).
+    if (write(sock, &seed_request, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
+        perror("Write error (seed request)");
+        close(sock);
+        return 1;
+    }
+
     struct can_frame seed_response;
-    read(sock, &seed_response, sizeof(struct can_frame));
+    ssize_t n = read(sock, &seed_response, sizeof(struct can_frame));
+    if (n < 0) {
+        // With SO_RCVTIMEO set, a timed-out read() returns -1 with errno EAGAIN/EWOULDBLOCK.
+        perror("No seed response (timeout or error)");
+        close(sock);
+        return 1;
+    }
 
-    // The ECU places the two seed bytes at payload indexes 3 and 4.
     unsigned char seed1 = seed_response.data[3];
     unsigned char seed2 = seed_response.data[4];
 
-    // Calculate the key using the XOR rules implemented by this simulator.
     unsigned char key1 = seed1 ^ 0xA5;
     unsigned char key2 = seed2 ^ 0x5A;
 
-    // Submit the calculated key with SecurityAccess sub-function 0x02.
     struct can_frame key_request;
+    memset(&key_request, 0, sizeof(key_request));
     key_request.can_id = 0x789;
     key_request.can_dlc = 5;
     key_request.data[0] = 0x04;
@@ -55,16 +69,25 @@ int main() {
     key_request.data[2] = 0x02;
     key_request.data[3] = key1;
     key_request.data[4] = key2;
-    write(sock, &key_request, sizeof(struct can_frame));
 
-    // Read the ECU's response and print its first five payload bytes.
+    if (write(sock, &key_request, sizeof(struct can_frame)) != sizeof(struct can_frame)) {
+        perror("Write error (key request)");
+        close(sock);
+        return 1;
+    }
+
     struct can_frame final_response;
-    read(sock, &final_response, sizeof(struct can_frame));
+    n = read(sock, &final_response, sizeof(struct can_frame));
+    if (n < 0) {
+        perror("No final response (timeout or error)");
+        close(sock);
+        return 1;
+    }
+
     printf("Final response: %x %x %x %x %x\n",
         final_response.data[0], final_response.data[1], final_response.data[2],
         final_response.data[3], final_response.data[4]);
 
-    // Release the CAN socket before exiting.
     close(sock);
     return 0;
 }
