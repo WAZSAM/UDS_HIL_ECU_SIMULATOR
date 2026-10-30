@@ -1,180 +1,117 @@
-**UDS HIL ECU Simulator**
+d## UDS ECU Simulator
 
-A simulated automotive ECU that responds to UDS diagnostic requests over a virtual CAN bus, paired with an automated test suite that verifies the ECU's responses are correct.
+This project is a small learning example of an Electronic Control Unit (ECU) that responds to Unified Diagnostic Services (UDS) messages over a virtual CAN bus named `vcan0`. It runs without a vehicle or CAN hardware.
 
-I built this to actually understand HIL/SIL testing instead of just reading about it — everything here runs on a virtual CAN interface (`vcan0`), so no real hardware is needed.
+Despite the project name, this is a software-only simulator. It is not a hardware-in-the-loop test setup.
 
-**What It Does**
+There are two ECU programs, but they do not behave the same way. The Python program, `ECU_mycan.py`, is the one covered by `test_ecu.py`. The C program, `ECU.c`, is an earlier, partial version with fewer checks and different responses.
 
-The simulator handles four UDS (ISO 14229) services:
+## Python simulator
 
-- **DiagnosticSessionControl (0x10)** — switches the ECU between diagnostic sessions (default, extended)
-- **ReadDataByIdentifier (0x22)** — returns ECU data for a requested identifier (e.g. VIN)
-- **SecurityAccess (0x27)** — full seed/key authentication handshake: seed request, key verification, and the locked/unlocked state that gates a protected DID
-- **ReadDTCInformation (0x19)** — returns stored diagnostic trouble codes
+The Python ECU handles these UDS services:
 
-If a client requests an unsupported sub-function on 0x10, 0x27, or 0x19, the ECU returns a proper negative response (`7F` + service ID + NRC) instead of failing silently or ignoring the request.
+- `0x10` DiagnosticSessionControl: accepts default session `0x01` and extended session `0x03`. A session request locks the ECU and clears its seed state.
+- `0x19` ReadDTCInformation: sub-function `0x02` returns fixed sample data; other sub-functions receive a negative response.
+- `0x22` ReadDataByIdentifier: DID `F190` returns the short sample VIN `WA12`. DID `F191` returns `V1` only after a successful unlock.
+- `0x27` SecurityAccess: sub-function `0x01` returns a random two-byte seed. For this demonstration, the matching key is calculated by XORing the first seed byte with `0xA5` and the second with `0x5A`. A key before a seed request receives NRC `0x24`; a wrong key receives NRC `0x35`.
 
-fuzzer.py is a basic fuzzer that sends a configurable number of UDS requests to the simulator, each with a randomized sub-function byte. Since it has no way of knowing the "correct" response for a random value, it doesn't check for correctness — it only checks whether the ECU responds at all within a timeout, to catch cases where malformed input might cause it to hang or crash instead of rejecting the request cleanly.
+Unsupported sub-functions for `0x10`, `0x19`, and `0x27` receive NRC `0x12`. An unknown DID receives NRC `0x31`, and reading `F191` while locked receives NRC `0x33`. A negative response begins with `0x7F`, followed by the requested service and the NRC.
 
-`test_ecu.py` is a separate pytest-based client that sends requests to the simulator and asserts the responses match what's expected — both the valid requests and the deliberately invalid ones.
+The seed/key rule is intentionally weak and is only suitable for a local demonstration. Do not connect these examples to a vehicle or a real ECU.
 
-## Source code guide
+## Files
 
-The source files include comments describing their main steps and the meaning
-of the UDS/CAN data they handle. These comments explain the existing code; they
-do not change how the programs behave.
+- `ECU_mycan.py`: Python ECU simulator used by the tests.
+- `ECU.c`: partial C ECU simulator. Its behavior differs from the Python version; see [Known issues](#known-issues).
+- `test_ecu.py`: 12 pytest tests for the Python simulator.
+- `unlock_test.c`: C program that requests a seed and submits the matching key.
+- `Key_generator.py`: Python client that performs the same example exchange.
+- `attack_capture.py`: listens for a SecurityAccess exchange to demonstrate the weakness of the fixed XOR rule. Use only on the isolated virtual bus.
+- `brute_force.c` and `burte_force.py`: key-guessing demonstrations. The Python filename is spelled `burte_force.py` in this repository. Run these only against the local simulator on `vcan0`.
+- `fuzzer.py`: sends five rounds of requests with random sub-functions and prints responses. It does not check whether the responses are correct.
+- `Hello.c`: small C example that checks a sample UDS service ID; it does not communicate over CAN.
 
-- `ECU_mycan.py` is the Python ECU simulator used by the tests. It handles
-  diagnostic sessions, DTC and DID reads, and the SecurityAccess seed/key flow.
-- `ECU.c` is a C version of the ECU that handles SecurityAccess and session
-  control requests over `vcan0`.
-- `Hello.c` is a small C example that checks a UDS service ID.
-- `unlock_test.c` is a C CAN client that requests a seed, calculates a key,
-  submits it, and prints the ECU's response.
-- `test_ecu.py` contains pytest checks for the Python simulator.
-- `Key_generator.py` demonstrates the simulator's seed/key exchange.
-- `attack_capture.py` demonstrates why the simulator's XOR-based key rule is
-  insecure by observing a seed/key pair.
-- `fuzzer.py` sends a small number of requests with randomized sub-functions
-  and prints whether a response arrived.
+## Requirements
 
-## Security behaviour
+- Linux with SocketCAN and the `vcan` kernel module. WSL may work if its Linux kernel provides these features.
+- Python 3, `pip`, and `iproute2`.
+- The Python packages `python-can` and `pytest`.
 
-The simulator behaves like a small ECU with a locked/unlocked state:
+## Setup
 
-- The ECU starts locked.
-- `27 01` returns a random two-byte seed, generated fresh on every request.
-  `27 02` with the correct key unlocks the ECU. The correct key is computed
-  per byte: the first byte is `seed1 XOR 0xA5`, the second is `seed2 XOR 0x5A`.
-- A key sent before any seed was requested is rejected with NRC `0x24`
-  (requestSequenceError). A wrong key is rejected with NRC `0x35` (invalidKey).
-- DID `F190` (VIN) is public and can be read at any time.
-- DID `F191` (hardware version) is protected. While the ECU is locked it
-  returns NRC `0x33` (securityAccessDenied). After a successful unlock it
-  returns the data.
-- An unknown DID returns NRC `0x31` (requestOutOfRange).
-- A diagnostic session change (`10 01` / `10 03`) re-locks the ECU and clears
-  the seed, similar to how a real ECU drops security access on a session change.
+Create a virtual environment and install the Python packages:
 
-## Tests
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install python-can pytest
+```
 
-12 pytest tests cover the services, the error responses and the lock logic,
-including the full flow: request a seed, compute the correct key from it,
-unlock, read the protected DID.
+Create and enable the virtual CAN interface. These commands may ask for your system password. If `vcan0` already exists, skip the `ip link add` command.
 
-Run them with the ECU running in another terminal:
+```sh
+sudo modprobe vcan
+sudo ip link add dev vcan0 type vcan
+sudo ip link set up vcan0
+ip link show vcan0
+```
 
-    python3 ECU_mycan.py
-    pytest -v
+There is no `setup_vcan.sh` file in this repository; the commands above set up the interface directly. The interface may need to be created again after a restart.
 
-A pytest fixture opens the python-can bus for each test, resets the ECU with a
-session control request so every test starts locked, and closes the bus at the
-end. Every receive has a 1-second timeout, so if the ECU is not running the
-tests fail quickly instead of hanging. Because the seed is random, tests that
-need a valid key read the seed out of the ECU's response and compute the key
-at test time, rather than hardcoding one.
+## Run the tests
 
-## Attack demo: recovering the SecurityAccess secret
+Open two terminals in the project directory. Activate the virtual environment in both.
 
-Two scripts demonstrate why a static XOR-based key algorithm is insecure,
-even once the seed itself is randomized:
+In the first terminal, start the Python ECU and leave it running:
 
-**`attack_capture.py`** — passively sniffs the CAN bus for one SecurityAccess
-seed/key exchange. Because the ECU's key algorithm is a fixed per-byte XOR
-(`key = seed XOR secret`), the secret bytes can be recovered from a single
-observed pair with `secret = seed XOR key`. This only has to be done once,
-ever — the secret never changes, no matter how often the seed does.
+```sh
+python ECU_mycan.py
+```
 
-**`Key_generator.py`** — uses the recovered secret bytes to unlock the ECU on
-demand, with no prior knowledge of any specific key: it requests a fresh
-seed, computes the correct key locally from the recovered secret, and sends
-it back. It never needs to observe a real client's key again, and it
-succeeds against every new random seed.
+In the second terminal, run the tests:
 
-**Why this matters:** randomizing the seed defeats a simple replay attack
-(resending an old captured key), but does nothing against a recovered XOR
-secret, because XOR is trivially invertible. A real ECU must not derive its
-key with a fixed, reversible function. The actual fix is a keyed
-cryptographic primitive (HMAC-SHA256 or AES-CMAC) where recovering the key
-from seed/response pairs is computationally infeasible — not just "harder to
-guess."
+```sh
+pytest -v test_ecu.py
+```
 
-## Known limitations
+The tests send requests over `vcan0` and check response bytes. They cover supported and unsupported requests, locked access, and the seed/key exchange. The ECU must be running for them to pass.
 
-This is a learning project. What it does not do yet:
+## Run a client
 
-- The key algorithm is a fixed per-byte XOR, which (see Attack demo above)
-  is recoverable from a single sniffed seed/key pair regardless of how the
-  seed is generated.
-- The VIN is shortened to 4 characters because multi-frame messages (ISO-TP,
-  ISO 15765-2) are not implemented.
-- The ECU answers requests on any CAN ID and does not check the length byte.
-- There is no limit on wrong key attempts (a real ECU locks out after a few).
+With `ECU_mycan.py` still running, run one client from another terminal:
 
-**How to Run**
+```sh
+python Key_generator.py
+```
 
-**Prerequisites**
-- Linux (or WSL2 on Windows — `wsl --install -d kali-linux`)
-- Python 3 with pip
+The other client scripts also use `vcan0`. `attack_capture.py` waits for traffic to observe, so it needs an exchange to occur while it is listening. Keep all demonstrations on the local virtual bus.
 
-**Setup**
+To compile the C ECU and client, use a C compiler such as GCC:
 
-git clone https://github.com/WAZSAM/UDS_HIL_ECU_SIMULATOR.git
-cd UDS_HIL_ECU_SIMULATOR
-pip install python-can pytest --break-system-packages
-./setup_vcan.sh
-ip link show vcan0 # confirm it shows UP
+```sh
+gcc -Wall -Wextra ECU.c -o ecu-c
+gcc -Wall -Wextra unlock_test.c -o unlock_test
+```
 
+Start `./ecu-c` instead of `ECU_mycan.py` to try the C ECU. The Python tests are not tests for the C program.
 
-**Running It**
+## Mistakes and known issues
 
-You need two terminals.
+Some issues found while building the project have been corrected in the Python code and tests:
 
-**Terminal 1 — start the ECU simulator, leave it running:**
+- Received CAN data is a `bytearray`, not a list. The tests convert it with `list(response.data)` before comparing bytes.
+- A check such as `value == 0x01 or 0x03` is always true because `0x03` is tested by itself. The session check now compares the value with both supported options.
+- Tests need to check the actual response bytes. Checking only that a response exists does not show whether the request succeeded or was rejected.
 
-python3 ECU_mycan.py
+There are still problems to address:
 
+- `fuzzer.py` reads fields from the SecurityAccess responses before checking whether a response arrived. It can stop with an exception on a timeout instead of reporting the missing response.
+- A few tests also access `response.data` before checking that `response` is not `None`.
+- The Python ECU does not validate CAN payload lengths or filter incoming CAN IDs. A short frame can cause an indexing error.
+- The Python ECU keeps the seed valid after a key attempt and does not limit wrong keys. This is not a safe design for a real ECU.
+- `ECU.c` does not match the Python ECU: its session handler accepts every sub-function as the default session, its DTC handler always sends the same positive response, and unsupported SecurityAccess sub-functions get no response. It also does not check that a seed was requested before accepting a key.
+- The C ECU uses `rand()` seeded from the current time. This is not a secure source for keys or security seeds.
+- The sample VIN is only four characters. The project does not implement ISO-TP, the transport used to send longer messages over CAN.
+- The DTC and DID values are sample data, not readings from a vehicle.
 
-**Terminal 2 — run the test suite:**
-
-pytest test_ecu.py -v
-
-
-All 12 tests should pass.
-
-**Manual testing (optional)**
-
-With the simulator still running, you can send raw requests by hand and watch the responses with `candump vcan0` in a third terminal:
-
-cansend vcan0 123#0210030000000000 # DiagnosticSessionControl (valid)
-cansend vcan0 123#0210990000000000 # DiagnosticSessionControl (invalid sub-function)
-cansend vcan0 199#0219020000000000 # ReadDTCInformation (valid)
-cansend vcan0 199#0219990000000000 # ReadDTCInformation (invalid sub-function)
-cansend vcan0 456#0322F19000000000 # ReadDataByIdentifier
-cansend vcan0 789#0227010000000000 # SecurityAccess (valid)
-cansend vcan0 789#0227990000000000 # SecurityAccess (invalid sub-function)
-
-
-Since the seed is random, you can't hand-type a working unlock key in
-advance — run `python3 Key_generator.py` instead to see a full automated
-unlock.
-
-**What I Learned**
-
-This was my first real Python project, so most of the "learning" was actually debugging. A few bugs stand out:
-
-`python-can` gives you received data as a `bytearray`, not a plain `list`. I wrote an assertion comparing the two directly and it kept failing even though `print()` showed the exact bytes I expected — turns out `bytearray([1,2,3]) == [1,2,3]` is just `False` in Python, different types, doesn't matter that the numbers match. Took a while to catch that one. Fix was wrapping it in `list(...)` before comparing.
-
-Also spent longer than I should have on `if x == 0x01 or 0x03:` silently doing nothing useful. Python reads that as "x == 0x01, or just 0x03 by itself" — and since 0x03 isn't zero, that second half is always true. So the whole check was always true no matter what came in. Had to spell out both sides of the comparison.
-
-`vcan0` also doesn't survive WSL restarting, which I found out the hard way, repeatedly, before I gave up and just wrote `setup_vcan.sh` so I'd stop re-typing the same three commands every session.
-
-Honestly the most common bug wasn't conceptual at all — it was miscounting bytes in a list. Off by one item here or there, length byte not matching what actually followed it. Most of the actual debugging time went into just lining things up correctly, byte for byte.
-
-Randomizing the seed broke every test and script that had a hardcoded key — a useful reminder that a test only proves what it actually asserts. My original tests all checked `response is not None`, which passes on a rejection just as easily as a success, so switching to a random seed didn't fail loudly, it just quietly stopped testing anything meaningful until I rewrote the assertions to check the actual response bytes.
-
-**Next Steps**
-
-- Replace the XOR key algorithm with a keyed cryptographic function (HMAC-SHA256 or AES-CMAC) so the attack demo in this repo no longer works
-- Multi-frame (ISO-TP) support so responses aren't capped at 7 bytes — the VIN response right now is a shortened fake VIN for exactly this reason
+These programs are for learning and local testing only. They are not suitable for protecting or diagnosing a real vehicle.
