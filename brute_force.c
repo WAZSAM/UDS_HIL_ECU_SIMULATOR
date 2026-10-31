@@ -92,10 +92,17 @@ int main() {
         close(sock);
         return 0;
          }
+
+    else if (final_response.data[1] == 0x7F && final_response.data[2] == 0x27 && final_response.data[3] == 0x37) {
+        printf("ECU locked after 3 failed attempts. Stopping brute-force.\n");
+        close(sock);
+        return 0;
+    
     }
 
     }
     close(sock);
     return 0;
      
+}
 }
