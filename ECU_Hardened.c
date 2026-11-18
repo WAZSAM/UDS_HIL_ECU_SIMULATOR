@@ -116,8 +116,7 @@ void check_sid(unsigned char data[], int sock) {
 
                 failed_attempts++; // Increment the failed attempts counter
                 if (failed_attempts >= attempt_threshold)  {
-                    lockout_until = time(NULL) + (10 << lockout_count); // Lockout duration increases exponentially
-                    ECU_is_locked = 0; 
+                    lockout_until = time(NULL) + (10 << lockout_count); // Lockout duration increases exponentially 
                     failed_attempts = 0;
                     lockout_count++; // Increase the lockout count for the next time d
                     attempt_threshold = 1; // after the first lockout, only 1 failed attempt is allowed before the next lockout
