@@ -19,8 +19,7 @@ Unsupported sub-functions return NRC `0x12`; an unsupported DID returns NRC `0x3
 
 - `ECU_mycan.py` - Python ECU simulator and the implementation covered by the tests.
 - `ECU.c` - earlier C implementation; its service behavior differs from the Python implementation.
-- `ECU_Hardened.c` - hardened C variant implementing a real UDS countermeasure (NRC 0x37, requiredTimeDelayNotExpired) against brute-force SecurityAccess attacks: exponential lockout backoff, a collapsing attempt threshold after the first lockout, lockout state that survives DiagnosticSessionControl resets and ECUReset, and a separate inactivity timeout. Verified against.
-- `brute_force.c` and against deliberate repeated-failure bypass attempts.
+- `ECU_Hardened.c` - hardened C variant implementing a real UDS countermeasure (NRC 0x37, requiredTimeDelayNotExpired) against brute-force SecurityAccess attacks: exponential lockout backoff, a collapsing attempt threshold after the first lockout, lockout state that survives DiagnosticSessionControl resets and ECUReset, and a separate inactivity timeout. Verified against.`brute_force.c` and against deliberate repeated-failure bypass attempts.
 - `test_ecu.py` - 12 pytest tests for the Python ECU.
 - `Key_generator.py` - client demonstrating the simulator's seed/key exchange.
 - `unlock_test.c` - C client demonstrating the same exchange.
