@@ -242,11 +242,23 @@ void check_sid(unsigned char data[], int sock) {
         response.data[4] = 0x00;
 
         write(sock, &response, sizeof(struct can_frame));
+    
+    } else if (data[1] == 0x11) {
 
-    } else {
-        // The ECU does not implement this service ID.
-        printf("Wrong SID \n");
-    }
+        ECU_is_locked = 1; // Lock the ECU when a reset request is received
+        printf("ECU Reset \n");
+        struct can_frame response;
+        response.can_id = 0x321;
+        response.can_dlc = 5;
+        response.data[0] = 0x03;
+        response.data[1] = 0x51;
+        response.data[2] = data[2]; // Echo the reset type
+        response.data[3] = 0x00;
+        response.data[4] = 0x00;
+
+        write(sock, &response, sizeof(struct can_frame));
+    } 
+
 }
 
 int main() {
