@@ -265,6 +265,7 @@ int main() {
 
     // Seed the random-number generator so each run starts with different seeds.
     srand(time(NULL));
+    last_activity_time = time(NULL);
 
     // Create a raw CAN socket used to receive requests and send responses.
     int sock = socket(PF_CAN, SOCK_RAW, CAN_RAW);
