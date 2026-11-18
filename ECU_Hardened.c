@@ -26,6 +26,12 @@ int lockout_count = 0;
 // Maximum number of failed attempts before lockout
 int attempt_threshold = 3;
 
+// Timestamp of the last activity (request received) from the tester   
+time_t last_activity_time = 0;
+
+// 15 seconds of inactivity before locking the ECU
+int inactivity_timeout = 15; 
+
 // Stores the two random bytes sent to the tester as the security seed.
 unsigned char store_seed = 0;
 unsigned char store_seed2 = 0;
@@ -35,7 +41,16 @@ void check_sid(unsigned char data[], int sock) {
      // Service ID 0x27 is UDS SecurityAccess.
 
     time_t current_time = time(NULL);
+    time_t time_since_last_activity = current_time - last_activity_time;
 
+    if (time_since_last_activity >= inactivity_timeout) {
+        ECU_is_locked = 1; // Lock the ECU due to inactivity
+        printf("ECU locked due to inactivity\n");
+    }
+
+    // Update the last activity timestamp
+    last_activity_time = current_time; 
+    
      if (data[1] == 0x27) {
         printf("Security Access \n");
 
