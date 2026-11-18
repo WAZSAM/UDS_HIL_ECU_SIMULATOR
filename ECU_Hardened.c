@@ -23,6 +23,9 @@ time_t lockout_until = 0;
 // Counts the number of failed attempts within the lockout period
 int lockout_count = 0; 
 
+// Maximum number of failed attempts before lockout
+int attempt_threshold = 3;
+
 // Stores the two random bytes sent to the tester as the security seed.
 unsigned char store_seed = 0;
 unsigned char store_seed2 = 0;
@@ -97,10 +100,12 @@ void check_sid(unsigned char data[], int sock) {
             else{
 
                 failed_attempts++; // Increment the failed attempts counter
-                if (failed_attempts >= 3 ) {
+                if (failed_attempts >= attempt_threshold)  {
                     lockout_until = time(NULL) + (10 << lockout_count); // Lockout duration increases exponentially
+                    ECU_is_locked = 0; 
                     failed_attempts = 0;
-                    lockout_count++; // Increase the lockout count for the next time 
+                    lockout_count++; // Increase the lockout count for the next time d
+                    attempt_threshold = 1; // after the first lockout, only 1 failed attempt is allowed before the next lockout
                     printf("Lockout #%d triggered, duration now %d seconds\n", lockout_count, 10 << lockout_count);  
                 }
 
